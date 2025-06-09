@@ -1,0 +1,16 @@
+{
+  "name": "Nostr Post Scheduler",
+  "short_name": "Nostr Scheduler",
+  "description": "Schedule your social media posts on Nostr to be published automatically at optimal times.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}

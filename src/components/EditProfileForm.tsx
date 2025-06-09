@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useToast } from '@/hooks/useToast';
@@ -18,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Upload } from 'lucide-react';
-import { NSchema as n, type NostrMetadata } from '@nostrify/nostrify';
+import { type NostrMetadata } from '@nostrify/nostrify';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUploadFile } from '@/hooks/useUploadFile';
 
@@ -32,7 +31,6 @@ export const EditProfileForm: React.FC = () => {
 
   // Initialize the form with default values
   const form = useForm<NostrMetadata>({
-    resolver: zodResolver(n.metadata()),
     defaultValues: {
       name: '',
       about: '',
