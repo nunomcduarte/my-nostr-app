@@ -124,23 +124,25 @@ export function Scheduler() {
               <Clock className="h-8 w-8" />
               Post Scheduler
             </h1>
-            <p className="text-muted-foreground mt-2">
-              {isLoadingProfile ? (
-                'Loading profile...'
-              ) : (
-                <>
-                  Welcome back, {displayName}
-                  {!hasRealProfile && (
-                    <span className="text-orange-600 ml-1">(using generated name)</span>
-                  )}
-                </>
-              )}
+            <div className="flex items-center gap-2 mt-2">
+              <p className="text-muted-foreground">
+                {isLoadingProfile ? (
+                  'Loading profile...'
+                ) : (
+                  <>
+                    Welcome back, {displayName}
+                    {!hasRealProfile && (
+                      <span className="text-orange-600 ml-1">(using generated name)</span>
+                    )}
+                  </>
+                )}
+              </p>
               {isEnabled && (
-                <Badge variant="secondary" className="ml-2">
+                <Badge variant="secondary">
                   Auto-publish enabled
                 </Badge>
               )}
-            </p>
+            </div>
           </div>
           
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>

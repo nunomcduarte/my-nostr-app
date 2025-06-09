@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { Clock, Calendar, Eye, Trash2, Play, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, Eye, List, Trash2, Play, CheckCircle, XCircle, AlertCircle, Plus } from 'lucide-react';
+
+// Import FullCalendar and required plugins
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
 import { useScheduledPosts } from '@/hooks/useScheduledPosts';
 import { usePublishScheduledPost, useCancelScheduledPost } from '@/hooks/usePublishScheduledPost';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -16,6 +22,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PostPreview } from '@/components/PostPreview';
 import { PostTimeFilter } from '@/components/PostTimeFilter';
 import { filterPostsByTime, type TimeFilter } from '@/lib/postFilters';
+import { NoteContent } from '@/components/NoteContent';
+import { SchedulePostForm } from '@/components/SchedulePostForm';
 import type { ScheduledPost } from '@/hooks/useScheduledPosts';
 
 function getStatusInfo(status: ScheduledPost['status']) {
@@ -195,7 +203,7 @@ function ScheduledPostCard({ post, canDecrypt }: ScheduledPostCardProps) {
             </CardTitle>
             <CardDescription className="flex items-center gap-4">
               <span className="flex items-center gap-1">
-                <Calendar className="w-4 h-4" />
+                <CalendarIcon className="w-4 h-4" />
                 {format(post.scheduledAt, 'PPP')}
               </span>
               <span className="flex items-center gap-1">
@@ -270,7 +278,91 @@ export function ScheduledPostsList({ className }: ScheduledPostsListProps) {
   const { user } = useCurrentUser();
   const { data: posts, isLoading, error } = useScheduledPosts(user?.pubkey);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>({ type: 'all' });
-  const [viewMode, setViewMode] = useState<'list' | 'preview'>('preview');
+  const [viewMode, setViewMode] = useState<'preview' | 'list' | 'calendar'>('preview');
+  const [selectedEvent, setSelectedEvent] = useState<ScheduledPost | null>(null);
+  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+  const [isNewPostDialogOpen, setIsNewPostDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  
+  // Custom event content renderer to show time and title on the same line
+  const renderEventContent = (eventInfo: any) => {
+    const { event, view } = eventInfo;
+    const post = event.extendedProps.post as ScheduledPost;
+    const status = post?.status || 'scheduled';
+    const statusColors: Record<string, string> = {
+      published: '#4CAF50', // green
+      scheduled: '#FFC107', // yellow
+      failed: '#F44336',    // red
+      cancelled: '#9E9E9E'  // grey
+    };
+    const color = statusColors[status] || statusColors.scheduled;
+    
+    // Format the time to show hours and minutes
+    const eventTime = new Date(event.start || '');
+    const formattedTime = eventTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Check which view we're in to apply appropriate styling
+    const isMonthView = view.type === 'dayGridMonth';
+    const isWeekView = view.type === 'timeGridWeek';
+    const isDayView = view.type === 'timeGridDay';
+    
+    // Determine title length based on view type
+    let titleMaxLength = 10; // Default for month view
+    let titleMaxWidth = '40px';
+    
+    if (isWeekView) {
+      titleMaxLength = 15;
+      titleMaxWidth = '80px';
+    } else if (isDayView) {
+      titleMaxLength = 25;
+      titleMaxWidth = '150px';
+    }
+    
+    // Truncate title based on view type
+    const shortTitle = event.title.length > titleMaxLength ? 
+      event.title.substring(0, titleMaxLength) + '...' : 
+      event.title;
+    
+    return (
+      <div className="fc-event-main-content" style={{ width: '100%', maxWidth: '100%' }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center',
+          width: '100%',
+          maxWidth: '100%',
+          overflow: 'hidden'
+        }}>
+          <div 
+            style={{ 
+              width: '8px', 
+              height: '8px', 
+              borderRadius: '50%', 
+              backgroundColor: color,
+              flexShrink: 0,
+              marginRight: '4px'
+            }} 
+          />
+          <span style={{ 
+            fontWeight: 500, 
+            fontSize: '0.85em',
+            flexShrink: 0,
+            marginRight: '2px'
+          }}>
+            {formattedTime}
+          </span>
+          <span style={{ 
+            fontSize: '0.85em',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            maxWidth: titleMaxWidth
+          }}>
+            {shortTitle}
+          </span>
+        </div>
+      </div>
+    );
+  };
 
   if (!user) {
     return (
@@ -362,10 +454,26 @@ export function ScheduledPostsList({ className }: ScheduledPostsListProps) {
       </div>
 
       {/* View Mode Tabs */}
-      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'list' | 'preview')}>
+      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'list' | 'preview' | 'calendar')} className="w-full">
         <TabsList>
-          <TabsTrigger value="preview">Preview Mode</TabsTrigger>
-          <TabsTrigger value="list">List Mode</TabsTrigger>
+          <TabsTrigger value="preview">
+            <div className="flex items-center gap-1">
+              <Eye className="h-4 w-4" />
+              Preview Mode
+            </div>
+          </TabsTrigger>
+          <TabsTrigger value="list">
+            <div className="flex items-center gap-1">
+              <List className="h-4 w-4" />
+              List Mode
+            </div>
+          </TabsTrigger>
+          <TabsTrigger value="calendar">
+            <div className="flex items-center gap-1">
+              <CalendarIcon className="h-4 w-4" />
+              Calendar Mode
+            </div>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="preview" className="mt-6">
@@ -508,6 +616,439 @@ export function ScheduledPostsList({ className }: ScheduledPostsListProps) {
                 </div>
               )}
             </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="calendar" className="mt-6">
+          {/* Calendar Mode */}
+          <div className="calendar-wrapper">
+            {filteredPosts.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 px-8 text-center">
+                  <CalendarIcon className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    {timeFilter.type === 'all' ? 'No scheduled posts yet' : 'No posts found for the selected time period'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {timeFilter.type === 'all' 
+                      ? 'Create your first scheduled post to see it here'
+                      : 'Try adjusting your time filter to see more posts'
+                    }
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <CalendarIcon className="h-5 w-5" />
+                      Calendar View
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-xs">
+                        <div className="w-3 h-3 rounded-full bg-[#eab308]" />
+                        <span>Scheduled</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs">
+                        <div className="w-3 h-3 rounded-full bg-[#22c55e]" />
+                        <span>Published</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs">
+                        <div className="w-3 h-3 rounded-full bg-[#ef4444]" />
+                        <span>Failed</span>
+                      </div>
+                    </div>
+                  </div>
+                  <CardDescription>
+                    Click on a date to schedule a new post or click on an event to view details
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div className="calendar-container" style={{ 
+                    '--fc-border-color': 'hsl(var(--border))',
+                    '--fc-button-bg-color': 'hsl(var(--primary))',
+                    '--fc-button-border-color': 'hsl(var(--primary))',
+                    '--fc-button-hover-bg-color': 'hsl(var(--primary) / 0.9)',
+                    '--fc-button-hover-border-color': 'hsl(var(--primary) / 0.9)',
+                    '--fc-button-active-bg-color': 'hsl(var(--primary) / 0.8)',
+                    '--fc-button-active-border-color': 'hsl(var(--primary) / 0.8)',
+                    '--fc-event-border-color': 'transparent',
+                    '--fc-page-bg-color': 'transparent',
+                    '--fc-today-bg-color': 'hsl(var(--muted) / 0.5)',
+                    '--fc-event-bg-color': 'hsl(var(--primary))',
+                    '--fc-event-text-color': 'hsl(var(--primary-foreground))',
+                    '--fc-daygrid-event-dot-width': '8px',
+                    '--fc-list-event-dot-width': '10px',
+                    '--fc-list-event-hover-bg-color': 'hsl(var(--accent))',
+                    '--fc-highlight-color': 'hsl(var(--accent) / 0.2)',
+                    '--fc-non-business-color': 'hsl(var(--muted) / 0.2)',
+                  } as React.CSSProperties}>
+                    {/* Add custom CSS for calendar styling */}
+                    <style dangerouslySetInnerHTML={{ __html: `
+                      .fc .fc-daygrid-day-top {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 4px 8px;
+                      }
+                      .fc .fc-daygrid-day-number {
+                        padding: 0;
+                      }
+                      .date-add-button {
+                        opacity: 0;
+                        transition: opacity 0.2s ease;
+                        cursor: pointer;
+                        background: hsl(var(--primary));
+                        color: hsl(var(--primary-foreground));
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 14px;
+                        font-weight: bold;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                      }
+                      .fc-day:hover .date-add-button {
+                        opacity: 1;
+                      }
+                      .fc-event {
+                        background-color: transparent !important;
+                        border: 1px solid transparent !important;
+                        box-shadow: none !important;
+                        border-radius: 4px;
+                        transition: all 0.2s ease;
+                        padding: 2px 4px;
+                      }
+                      
+                      .fc-event:hover {
+                        border-color: hsl(var(--border)) !important;
+                        background-color: hsl(var(--accent)/0.1) !important;
+                        transform: translateY(-1px);
+                        cursor: pointer;
+                      }
+                      }
+                      
+                      /* Add status indicator before event title */
+                      .fc-event-title::before {
+                        content: '';
+                        display: inline-block;
+                        width: 8px;
+                        height: 8px;
+                        border-radius: 50%;
+                        margin-right: 6px;
+                        vertical-align: middle;
+                      }
+                      
+                      .fc-event.status-published .fc-event-title::before {
+                        background-color: #22c55e;
+                      }
+                      
+                      .fc-event.status-scheduled .fc-event-title::before {
+                        background-color: #eab308;
+                      }
+                      
+                      .fc-event.status-failed .fc-event-title::before {
+                        background-color: #ef4444;
+                      }
+                      
+                      .fc-event.status-cancelled .fc-event-title::before {
+                        background-color: hsl(var(--muted-foreground));
+                      }
+                      .fc-daygrid-day-frame {
+                        min-height: 100px;
+                      }
+                      .fc .fc-toolbar-title {
+                        font-size: 1.25rem;
+                        font-weight: 600;
+                      }
+                      .fc .fc-button {
+                        font-size: 0.875rem;
+                        padding: 0.25rem 0.5rem;
+                      }
+                      
+                      /* Custom navigation buttons styled with shadcn UI design system */
+                      .fc .fc-button {
+                        font-family: inherit;
+                        font-size: 0.875rem;
+                        height: 2.25rem;
+                        transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+                        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+                        transition-duration: 150ms;
+                      }
+                      
+                      .fc .fc-button-primary {
+                        background-color: transparent !important;
+                        color: hsl(var(--foreground)) !important;
+                        border: 1px solid hsl(var(--border)) !important;
+                      }
+                      
+                      .fc .fc-button-primary:not(:disabled):hover {
+                        background-color: hsl(var(--accent)) !important;
+                        color: hsl(var(--accent-foreground)) !important;
+                      }
+                      
+                      .fc .fc-button-primary:not(:disabled):active,
+                      .fc .fc-button-primary.fc-button-active {
+                        background-color: hsl(var(--accent)) !important;
+                        color: hsl(var(--accent-foreground)) !important;
+                      }
+                      
+                      /* Navigation buttons (prev/next) */
+                      .fc .fc-prev-button,
+                      .fc .fc-next-button {
+                        background-color: hsla(var(--muted)/0.3) !important;
+                        border: 1px solid hsla(var(--border)/0.2) !important;
+                        color: hsl(var(--foreground)) !important;
+                        border-radius: 9999px !important;
+                        width: 2.5rem !important;
+                        height: 2.5rem !important;
+                        padding: 0 !important;
+                        display: flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        margin: 0 0.25rem !important;
+                        overflow: hidden !important;
+                        box-shadow: none !important;
+                      }
+                      
+                      .fc .fc-prev-button:hover,
+                      .fc .fc-next-button:hover {
+                        background-color: hsla(var(--muted)/0.5) !important;
+                      }
+                      
+                      .fc .fc-button-group {
+                        gap: 0.5rem;
+                      }
+                      
+                      /* Today button */
+                      .fc .fc-today-button {
+                        background-color: hsla(var(--primary)/0.2) !important;
+                        color: hsl(var(--primary)) !important;
+                        border: 1px solid hsla(var(--primary)/0.2) !important;
+                        border-radius: 0.375rem !important;
+                        font-weight: 500 !important;
+                        padding: 0.5rem 1rem !important;
+                        text-transform: none !important;
+                        font-size: 0.875rem !important;
+                      }
+                      
+                      .fc .fc-today-button:hover:not(:disabled) {
+                        background-color: hsla(var(--primary)/0.3) !important;
+                      }
+                      
+                      /* Remove any inner square containers */
+                      .fc .fc-prev-button span,
+                      .fc .fc-next-button span {
+                        background: none !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                        width: 100% !important;
+                        height: 100% !important;
+                        display: flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                      }
+                      
+                      /* Hide default icons */
+                      .fc .fc-icon-chevron-left,
+                      .fc .fc-icon-chevron-right {
+                        font-size: 0 !important;
+                      }
+                      
+                      .fc .fc-prev-button .fc-icon,
+                      .fc .fc-next-button .fc-icon {
+                        font-family: inherit;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: none !important;
+                        width: 100% !important;
+                        height: 100% !important;
+                        position: relative;
+                      }
+                      
+                      .fc .fc-prev-button .fc-icon:after {
+                        content: '';
+                        width: 0.75rem;
+                        height: 0.75rem;
+                        border-width: 0 0 2px 2px;
+                        border-style: solid;
+                        border-color: currentColor;
+                        transform: rotate(45deg);
+                        position: absolute;
+                        left: 55%;
+                      }
+                      
+                      .fc .fc-next-button .fc-icon:after {
+                        content: '';
+                        width: 0.75rem;
+                        height: 0.75rem;
+                        border-width: 2px 2px 0 0;
+                        border-style: solid;
+                        border-color: currentColor;
+                        transform: rotate(45deg);
+                        position: absolute;
+                        right: 55%;
+                      }
+                      .fc-theme-standard .fc-scrollgrid {
+                        border-radius: 0.5rem;
+                        overflow: hidden;
+                      }
+                      .fc-theme-standard td, .fc-theme-standard th {
+                        border-color: hsl(var(--border));
+                      }
+                      .fc-day-today {
+                        background-color: hsl(var(--accent) / 0.2) !important;
+                      }
+                      .fc-event-title {
+                        font-weight: 500;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                      }
+                    ` }} />
+                    <FullCalendar
+                      plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                      initialView="dayGridMonth"
+                      headerToolbar={{
+                        left: 'prev,next today',
+                        center: 'title',
+                        right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                      }}
+                      dayCellDidMount={(info) => {
+                        // Add plus button to each day cell
+                        const plusButton = document.createElement('div');
+                        plusButton.className = 'date-add-button';
+                        plusButton.innerHTML = '+';
+                        plusButton.addEventListener('click', (e) => {
+                          e.stopPropagation(); // Prevent the dateClick event from firing
+                          setSelectedDate(info.date);
+                          setIsNewPostDialogOpen(true);
+                        });
+                        
+                        // Find the day number element and append the plus button next to it
+                        const dayTop = info.el.querySelector('.fc-daygrid-day-top');
+                        if (dayTop) {
+                          dayTop.appendChild(plusButton);
+                        }
+                      }}
+                      events={filteredPosts.map(post => ({
+                        id: post.id,
+                        title: post.title || (post.content.length > 30 ? post.content.substring(0, 27) + '...' : post.content) || 'Scheduled Post',
+                        start: post.scheduledAt,
+                        allDay: false,
+                        className: `status-${post.status}`,
+                        extendedProps: {
+                          post,
+                          status: post.status
+                        }
+                      }))}
+                      eventContent={renderEventContent}
+                      eventClick={(clickInfo) => {
+                        const post = clickInfo.event.extendedProps.post as ScheduledPost;
+                        setSelectedEvent(post);
+                        setIsEventDialogOpen(true);
+                      }}
+                      dateClick={(info) => {
+                        setSelectedDate(info.date);
+                        setIsNewPostDialogOpen(true);
+                      }}
+                      dayMaxEvents={true}
+                      height="auto"
+                      selectable={true}
+                      aspectRatio={1.5}
+                      buttonText={{
+                        today: 'Today',
+                        month: 'Month',
+                        week: 'Week',
+                        day: 'Day',
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+          
+          {/* Event Details Dialog */}
+          {selectedEvent && (
+            <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
+              <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle className="flex items-center gap-2">
+                      {selectedEvent.title || 'Post Details'}
+                      <Badge 
+                        variant={selectedEvent.status === 'published' ? 'default' : 
+                                selectedEvent.status === 'scheduled' ? 'secondary' : 
+                                selectedEvent.status === 'failed' ? 'destructive' : 'outline'}
+                      >
+                        {selectedEvent.status}
+                      </Badge>
+                    </DialogTitle>
+                    <div className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      {format(selectedEvent.scheduledAt, 'PPpp')}
+                    </div>
+                  </div>
+                </DialogHeader>
+                
+                <div className="mt-4">
+                  <PostPreview post={selectedEvent} showAuthor={true} />
+                </div>
+                
+                <div className="flex justify-end gap-2 mt-4">
+                  {selectedEvent.status === 'scheduled' && (
+                    <Button 
+                      variant="default" 
+                      onClick={() => {
+                        // Use the existing publish functionality
+                        const { mutate: publishPost } = usePublishScheduledPost();
+                        publishPost(selectedEvent);
+                        setIsEventDialogOpen(false);
+                      }}
+                    >
+                      <Play className="w-4 h-4 mr-2" />
+                      Publish Now
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => setIsEventDialogOpen(false)}>Close</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+          
+          {/* New Post Dialog */}
+          {selectedDate && (
+            <Dialog open={isNewPostDialogOpen} onOpenChange={setIsNewPostDialogOpen}>
+              <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle className="flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Schedule New Post
+                    </DialogTitle>
+                    <div className="text-sm text-muted-foreground flex items-center gap-1">
+                      <CalendarIcon className="h-4 w-4" />
+                      {format(selectedDate, 'PPP')}
+                    </div>
+                  </div>
+                  <DialogDescription>
+                    Create a post to be published on {format(selectedDate, 'PPPP')}
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="mt-4">
+                  <SchedulePostForm 
+                    onSuccess={() => setIsNewPostDialogOpen(false)}
+                    preselectedDate={selectedDate}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
           )}
         </TabsContent>
       </Tabs>

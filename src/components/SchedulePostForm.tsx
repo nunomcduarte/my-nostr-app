@@ -18,9 +18,10 @@ import { cn } from '@/lib/utils';
 interface SchedulePostFormProps {
   onSuccess?: () => void;
   className?: string;
+  preselectedDate?: Date;
 }
 
-export function SchedulePostForm({ onSuccess, className }: SchedulePostFormProps) {
+export function SchedulePostForm({ onSuccess, className, preselectedDate }: SchedulePostFormProps) {
   const { user } = useCurrentUser();
   const { mutate: createScheduledPost, isPending } = useCreateScheduledPost();
   const { toast } = useToast();
@@ -28,8 +29,19 @@ export function SchedulePostForm({ onSuccess, className }: SchedulePostFormProps
   // Form state
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
-  const [scheduledDate, setScheduledDate] = useState<Date>();
-  const [scheduledTime, setScheduledTime] = useState('');
+  const [scheduledDate, setScheduledDate] = useState<Date | undefined>(preselectedDate);
+  const [scheduledTime, setScheduledTime] = useState(() => {
+    // If preselected date is provided, set the time to the current time + 1 hour rounded to nearest 15 minutes
+    if (preselectedDate) {
+      const date = new Date(preselectedDate);
+      date.setHours(date.getHours() + 1);
+      // Round to nearest 15 minutes
+      const minutes = Math.round(date.getMinutes() / 15) * 15;
+      date.setMinutes(minutes);
+      return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+    return '';
+  });
   const [postKind, setPostKind] = useState('1');
   const [images, setImages] = useState<ImageData[]>([]);
 
