@@ -6,6 +6,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { LoginArea } from '@/components/auth/LoginArea';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { Navigation } from '@/components/Navigation';
+import { genUserName } from '@/lib/genUserName';
 import { SchedulePostForm } from '@/components/SchedulePostForm';
 import { ScheduledPostsList } from '@/components/ScheduledPostsList';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,7 +36,7 @@ function StatsCard({ title, value, description, icon: Icon }: {
 }
 
 export function Scheduler() {
-  const { user } = useCurrentUser();
+  const { user, metadata, isLoading: isLoadingProfile } = useCurrentUser();
   const { data: posts } = useScheduledPosts(user?.pubkey);
   const { isEnabled } = useSchedulerService();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -104,6 +105,10 @@ export function Scheduler() {
   const publishedCount = userPosts.filter(p => p.status === 'published').length;
   const failedCount = userPosts.filter(p => p.status === 'failed').length;
 
+  // Profile info
+  const displayName = metadata?.display_name || metadata?.name || (user ? genUserName(user.pubkey) : '');
+  const hasRealProfile = metadata && (metadata.name || metadata.display_name || metadata.picture || metadata.about);
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="space-y-8">
@@ -120,7 +125,16 @@ export function Scheduler() {
               Post Scheduler
             </h1>
             <p className="text-muted-foreground mt-2">
-              Schedule and manage your Nostr posts
+              {isLoadingProfile ? (
+                'Loading profile...'
+              ) : (
+                <>
+                  Welcome back, {displayName}
+                  {!hasRealProfile && (
+                    <span className="text-orange-600 ml-1">(using generated name)</span>
+                  )}
+                </>
+              )}
               {isEnabled && (
                 <Badge variant="secondary" className="ml-2">
                   Auto-publish enabled

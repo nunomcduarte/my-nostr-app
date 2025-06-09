@@ -1,16 +1,20 @@
-import { User, Settings, LogOut, Calendar, Activity, Clock, Copy, Check } from 'lucide-react';
+import { User, Settings, LogOut, Calendar, Activity, Clock, Copy, Check, AlertCircle, Wifi, RefreshCw } from 'lucide-react';
 import { useSeoMeta } from '@unhead/react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useScheduledPosts } from '@/hooks/useScheduledPosts';
+import { useQueryClient } from '@tanstack/react-query';
 import { LoginArea } from '@/components/auth/LoginArea';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { EditProfileForm } from '@/components/EditProfileForm';
 import { Navigation } from '@/components/Navigation';
+import { RelaySelector } from '@/components/RelaySelector';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { genUserName } from '@/lib/genUserName';
@@ -38,11 +42,24 @@ function StatsCard({ title, value, description, icon: Icon }: {
 }
 
 export function Profile() {
-  const { user, metadata } = useCurrentUser();
+  const { 
+    user, 
+    metadata, 
+    isLoading: isLoadingProfile, 
+    foundOnRelay,
+    triedRelays,
+    hasTriedMultipleRelays,
+    currentTryRelay
+  } = useCurrentUser();
   const { data: posts } = useScheduledPosts(user?.pubkey);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [copiedNpub, setCopiedNpub] = useState(false);
   const [copiedPubkey, setCopiedPubkey] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Check if we have any profile data (excluding the fallback generated name)
+  const hasProfileData = metadata && (metadata.name || metadata.display_name || metadata.picture || metadata.about);
+  const isUsingFallbackName = !hasProfileData;
 
   useSeoMeta({
     title: user ? `${metadata?.name || genUserName(user.pubkey)} - Profile` : 'Profile',
@@ -105,6 +122,14 @@ export function Profile() {
     }
   };
 
+  const refreshProfile = () => {
+    if (user?.pubkey) {
+      // Invalidate both query keys to force refresh
+      queryClient.invalidateQueries({ queryKey: ['profile-with-fallback', user.pubkey] });
+      queryClient.invalidateQueries({ queryKey: ['author', user.pubkey] });
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -148,89 +173,185 @@ export function Profile() {
           </div>
         </div>
 
+        {/* Profile Loading/Missing Data Warning */}
+        {isLoadingProfile && (
+          <Alert>
+            <Wifi className="h-4 w-4 animate-pulse" />
+            <AlertDescription>
+              {currentTryRelay ? (
+                <div>
+                  Searching for your profile data...
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    Currently trying: {currentTryRelay}
+                    {triedRelays.length > 0 && ` (${triedRelays.length} relays tried)`}
+                  </span>
+                </div>
+              ) : (
+                'Loading your profile data from the relay...'
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {foundOnRelay && hasProfileData && (
+          <Alert>
+            <Check className="h-4 w-4 text-green-600" />
+            <AlertDescription>
+              <div className="flex items-center justify-between">
+                <span>
+                  <strong>Profile loaded successfully!</strong> Found your profile data on {foundOnRelay.replace('wss://', '')}
+                  {hasTriedMultipleRelays && ` after searching ${triedRelays.length} relays`}.
+                </span>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!isLoadingProfile && isUsingFallbackName && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <strong>Profile data not found.</strong> You're seeing a generated name because your profile metadata wasn't found
+                  {triedRelays.length > 0 && ` on ${triedRelays.length} relays we tried`}.
+                </div>
+                {triedRelays.length > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    <strong>Tried relays:</strong> {triedRelays.map(relay => relay.replace('wss://', '')).join(', ')}
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Try a different relay or create your profile:</span>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={refreshProfile}
+                      disabled={isLoadingProfile}
+                    >
+                      <RefreshCw className={`h-3 w-3 mr-1 ${isLoadingProfile ? 'animate-spin' : ''}`} />
+                      Retry
+                    </Button>
+                    <RelaySelector />
+                  </div>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Profile Info */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-start gap-6">
-              <Avatar className="h-24 w-24">
-                <AvatarImage src={profileImage} alt={displayName} />
-                <AvatarFallback className="text-2xl">
-                  {displayName.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              
-              <div className="flex-1 space-y-3">
-                <div>
-                  <h2 className="text-2xl font-bold">{displayName}</h2>
-                  {displayName !== userName && (
-                    <p className="text-muted-foreground">@{userName}</p>
-                  )}
-                  {nip05 && (
-                    <Badge variant="secondary" className="mt-1">
-                      ✓ {nip05}
-                    </Badge>
-                  )}
-                </div>
-                
-                {about && (
-                  <p className="text-muted-foreground">{about}</p>
-                )}
-                
-                {website && (
-                  <a
-                    href={website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline inline-flex items-center gap-1"
-                  >
-                    🌐 {website}
-                  </a>
-                )}
-                
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <span>npub:</span>
-                    <div className="flex items-center gap-1">
-                      <code className="text-xs bg-muted px-2 py-1 rounded">
-                        {nip19.npubEncode(user.pubkey)}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => copyToClipboard(nip19.npubEncode(user.pubkey), 'npub')}
-                      >
-                        {copiedNpub ? (
-                          <Check className="h-3 w-3 text-green-600" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
-                        )}
-                      </Button>
-                    </div>
+            {isLoadingProfile ? (
+              <div className="flex items-start gap-6">
+                <Skeleton className="h-24 w-24 rounded-full" />
+                <div className="flex-1 space-y-3">
+                  <div className="space-y-2">
+                    <Skeleton className="h-8 w-48" />
+                    <Skeleton className="h-4 w-32" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span>Public Key:</span>
-                    <div className="flex items-center gap-1">
-                      <code className="text-xs bg-muted px-2 py-1 rounded">
-                        {user.pubkey.slice(0, 8)}...{user.pubkey.slice(-8)}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => copyToClipboard(user.pubkey, 'pubkey')}
-                      >
-                        {copiedPubkey ? (
-                          <Check className="h-3 w-3 text-green-600" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
-                        )}
-                      </Button>
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-6">
+                <Avatar className="h-24 w-24">
+                  <AvatarImage src={profileImage} alt={displayName} />
+                  <AvatarFallback className="text-2xl">
+                    {displayName.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                
+                <div className="flex-1 space-y-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-2xl font-bold">{displayName}</h2>
+                      {isUsingFallbackName && (
+                        <Badge variant="outline" className="text-orange-600 border-orange-300">
+                          Generated Name
+                        </Badge>
+                      )}
+                    </div>
+                    {displayName !== userName && (
+                      <p className="text-muted-foreground">@{userName}</p>
+                    )}
+                    {nip05 && (
+                      <Badge variant="secondary" className="mt-1">
+                        ✓ {nip05}
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {about ? (
+                    <p className="text-muted-foreground">{about}</p>
+                  ) : !isLoadingProfile && (
+                    <p className="text-muted-foreground italic">No bio available</p>
+                  )}
+                  
+                  {website && (
+                    <a
+                      href={website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      🌐 {website}
+                    </a>
+                  )}
+                  
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <span>npub:</span>
+                      <div className="flex items-center gap-1">
+                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                          {nip19.npubEncode(user.pubkey)}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => copyToClipboard(nip19.npubEncode(user.pubkey), 'npub')}
+                        >
+                          {copiedNpub ? (
+                            <Check className="h-3 w-3 text-green-600" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>Public Key:</span>
+                      <div className="flex items-center gap-1">
+                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                          {user.pubkey.slice(0, 8)}...{user.pubkey.slice(-8)}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => copyToClipboard(user.pubkey, 'pubkey')}
+                        >
+                          {copiedPubkey ? (
+                            <Check className="h-3 w-3 text-green-600" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 

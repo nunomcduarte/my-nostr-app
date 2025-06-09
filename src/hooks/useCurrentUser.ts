@@ -2,11 +2,14 @@ import { type NLoginType, NUser, useNostrLogin } from '@nostrify/react/login';
 import { useNostr } from '@nostrify/react';
 import { useCallback, useMemo } from 'react';
 
-import { useAuthor } from './useAuthor.ts';
+
+import { useProfileWithFallback } from './useProfileWithFallback.ts';
+import { useAppContext } from './useAppContext.ts';
 
 export function useCurrentUser() {
   const { nostr } = useNostr();
   const { logins } = useNostrLogin();
+  const { config } = useAppContext();
 
   const loginToUser = useCallback((login: NLoginType): NUser  => {
     switch (login.type) {
@@ -38,11 +41,21 @@ export function useCurrentUser() {
   }, [logins, loginToUser]);
 
   const user = users[0] as NUser | undefined;
-  const author = useAuthor(user?.pubkey);
+  
+  // Use the improved profile fetching that tries multiple relays
+  const profileQuery = useProfileWithFallback(user?.pubkey, config.relayUrl);
 
   return {
     user,
     users,
-    ...author.data,
+    metadata: profileQuery.data?.metadata,
+    event: profileQuery.data?.event,
+    isLoading: profileQuery.isLoading,
+    error: profileQuery.error,
+    isError: profileQuery.isError,
+    foundOnRelay: profileQuery.data?.foundOnRelay,
+    triedRelays: profileQuery.triedRelays,
+    hasTriedMultipleRelays: profileQuery.hasTriedMultipleRelays,
+    currentTryRelay: profileQuery.currentTryRelay,
   };
 }

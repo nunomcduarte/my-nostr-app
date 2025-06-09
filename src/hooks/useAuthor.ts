@@ -12,22 +12,37 @@ export function useAuthor(pubkey: string | undefined) {
         return {};
       }
 
+      console.log(`🔍 Fetching profile for pubkey: ${pubkey.slice(0, 8)}...`);
+      
       const [event] = await nostr.query(
         [{ kinds: [0], authors: [pubkey!], limit: 1 }],
-        { signal: AbortSignal.any([signal, AbortSignal.timeout(1500)]) },
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) }, // Increased timeout to 5 seconds
       );
 
       if (!event) {
-        throw new Error('No event found');
+        console.log(`⚠️  No profile event found for pubkey: ${pubkey.slice(0, 8)}...`);
+        // Return empty object instead of throwing error - this allows graceful fallback
+        return {};
       }
+
+      console.log(`✅ Found profile event for pubkey: ${pubkey.slice(0, 8)}...`);
 
       try {
         const metadata = n.json().pipe(n.metadata()).parse(event.content);
+        console.log(`📋 Parsed profile metadata:`, {
+          name: metadata.name,
+          display_name: metadata.display_name,
+          picture: metadata.picture ? 'Yes' : 'No',
+          about: metadata.about ? 'Yes' : 'No'
+        });
         return { metadata, event };
-      } catch {
+      } catch (error) {
+        console.log(`❌ Failed to parse profile metadata:`, error);
         return { event };
       }
     },
-    retry: 3,
+    retry: 2, // Reduced retries to avoid long delays
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    enabled: !!pubkey, // Only run query if pubkey exists
   });
 }
