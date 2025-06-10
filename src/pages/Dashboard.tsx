@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Calendar as CalendarIcon, ArrowUp, MessageSquare, Repeat, Zap, BarChart3 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Calendar as CalendarIcon, ArrowUp, MessageSquare, Repeat, Zap, BarChart3, List, Copy, ExternalLink, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNostr } from '@nostrify/react';
 import { useQuery } from '@tanstack/react-query';
@@ -15,6 +15,75 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+// Helper Components
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  
+  return (
+    <Button 
+      variant="ghost" 
+      size="icon" 
+      className="h-6 w-6" 
+      onClick={handleCopy}
+      title="Copy to clipboard"
+    >
+      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+    </Button>
+  );
+}
+
+function PostContent({ content }: { content: string }) {
+  // Extract URLs that might be images
+  const extractedUrls = useMemo(() => {
+    const urlRegex = /(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp)(\?[^\s]*)?)/gi;
+    return content.match(urlRegex) || [];
+  }, [content]);
+  
+  // Format the text content with line breaks preserved
+  const formattedContent = useMemo(() => {
+    // Replace image URLs with placeholders to avoid showing them twice
+    let processedContent = content;
+    extractedUrls.forEach(url => {
+      processedContent = processedContent.replace(url, '');
+    });
+    return processedContent.trim();
+  }, [content, extractedUrls]);
+  
+  return (
+    <div className="space-y-4">
+      {/* Text content */}
+      <div className="whitespace-pre-wrap">{formattedContent}</div>
+      
+      {/* Images if any */}
+      {extractedUrls.length > 0 && (
+        <div className="space-y-2">
+          {extractedUrls.map((url, index) => (
+            <div key={index} className="rounded-md overflow-hidden">
+              <img 
+                src={url} 
+                alt="Post content" 
+                className="max-w-full h-auto object-cover" 
+                onError={(e) => {
+                  // Hide image if it fails to load
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Types
 interface MetricCardProps {
@@ -136,6 +205,7 @@ export default function Dashboard() {
   const { user } = useCurrentUser();
   const [dateRange, setDateRange] = useState<Date | undefined>(new Date());
   const [timeFrame, setTimeFrame] = useState<string>("week");
+  const [selectedPost, setSelectedPost] = useState<PostWithMetrics | null>(null);
   
   // Get zap analytics
   const { data: zapAnalytics, isLoading: zapLoading } = useZapAnalytics();
@@ -352,15 +422,14 @@ export default function Dashboard() {
         />
       </div>
       
-      <Tabs defaultValue="posts">
+      <Tabs defaultValue="overview">
         <TabsList>
-          <TabsTrigger value="posts">Posts</TabsTrigger>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="posts">Posts</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="posts" className="space-y-4">
-          <h2 className="text-xl font-semibold mt-4">Published Posts Performance</h2>
-          
+        <TabsContent value="overview" className="space-y-4">
           {isLoading ? (
             <div className="space-y-4">
               {[1, 2, 3].map(i => (
@@ -519,7 +588,230 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </TabsContent>
+        
+        <TabsContent value="posts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">All Posts</CardTitle>
+              <CardDescription>View all your posts and their engagement metrics</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ) : publishedPosts && publishedPosts.length > 0 ? (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableCaption>A list of all your posts and their engagement metrics</TableCaption>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title/Content</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Likes</TableHead>
+                        <TableHead className="text-right">Comments</TableHead>
+                        <TableHead className="text-right">Reposts</TableHead>
+                        <TableHead className="text-right">Zaps</TableHead>
+                        <TableHead className="text-right">Zaps (Sats)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPosts.map((post) => (
+                        <TableRow 
+                          key={post.id} 
+                          className="group cursor-pointer hover:bg-muted/80"
+                        >
+                          <TableCell className="font-medium" onClick={() => setSelectedPost(post)}>
+                            <div className="flex items-center justify-between">
+                              <span>{post.title || post.content.substring(0, 50) + (post.content.length > 50 ? '...' : '')}</span>
+                              <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); setSelectedPost(post); }}>View</Button>
+                            </div>
+                          </TableCell>
+                          <TableCell onClick={() => setSelectedPost(post)}>{format(post.publishedAt, 'PPP')}</TableCell>
+                          <TableCell className="text-right" onClick={() => setSelectedPost(post)}>{post.metrics.likes}</TableCell>
+                          <TableCell className="text-right" onClick={() => setSelectedPost(post)}>{post.metrics.comments}</TableCell>
+                          <TableCell className="text-right" onClick={() => setSelectedPost(post)}>{post.metrics.reposts}</TableCell>
+                          <TableCell className="text-right" onClick={() => setSelectedPost(post)}>{post.metrics.zaps}</TableCell>
+                          <TableCell className="text-right" onClick={() => setSelectedPost(post)}>{post.metrics.zapAmount.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="py-6 text-center text-muted-foreground">
+                  <List className="mx-auto h-8 w-8 opacity-50" />
+                  <p className="mt-2">No posts found</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+      
+      {/* Post Detail Dialog */}
+      <Dialog 
+        open={!!selectedPost} 
+        onOpenChange={(open) => !open && setSelectedPost(null)}
+      >
+        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl">
+                {selectedPost?.title || 'Post Details'}
+              </DialogTitle>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  {selectedPost?.id ? `ID: ${selectedPost.id.substring(0, 8)}...` : ''}
+                </Badge>
+                <CopyButton value={selectedPost?.id || ''} />
+              </div>
+            </div>
+            <DialogDescription className="flex items-center justify-between">
+              <span>Published on {selectedPost && format(selectedPost.publishedAt, 'PPP')} at {selectedPost && format(selectedPost.publishedAt, 'p')}</span>
+              <div className="flex items-center gap-1 text-xs">
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <ArrowUp className="h-3 w-3" /> {selectedPost?.metrics.likes || 0}
+                </Badge>
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <MessageSquare className="h-3 w-3" /> {selectedPost?.metrics.comments || 0}
+                </Badge>
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Repeat className="h-3 w-3" /> {selectedPost?.metrics.reposts || 0}
+                </Badge>
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Zap className="h-3 w-3" /> {selectedPost?.metrics.zaps || 0}
+                </Badge>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedPost && (
+            <div className="space-y-6">
+              {/* Post Content with Images */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="prose max-w-none dark:prose-invert">
+                    <PostContent content={selectedPost.content} />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Metrics and Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Engagement Details</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <ArrowUp className="h-4 w-4 text-blue-500" />
+                          <span className="text-muted-foreground">Likes</span>
+                        </div>
+                        <span className="font-medium">{selectedPost.metrics.likes}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4 text-green-500" />
+                          <span className="text-muted-foreground">Comments</span>
+                        </div>
+                        <span className="font-medium">{selectedPost.metrics.comments}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Repeat className="h-4 w-4 text-purple-500" />
+                          <span className="text-muted-foreground">Reposts</span>
+                        </div>
+                        <span className="font-medium">{selectedPost.metrics.reposts}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Zap Details</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-yellow-500" />
+                          <span className="text-muted-foreground">Count</span>
+                        </div>
+                        <span className="font-medium">{selectedPost.metrics.zaps}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-yellow-500" />
+                          <span className="text-muted-foreground">Amount</span>
+                        </div>
+                        <span className="font-medium">{selectedPost.metrics.zapAmount.toLocaleString()} sats</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-yellow-500" />
+                          <span className="text-muted-foreground">Avg per Zap</span>
+                        </div>
+                        <span className="font-medium">
+                          {selectedPost.metrics.zaps > 0 
+                            ? Math.round(selectedPost.metrics.zapAmount / selectedPost.metrics.zaps).toLocaleString() 
+                            : 0} sats
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Post ID and Actions */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Post Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Post ID:</span>
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                          {selectedPost.id}
+                        </code>
+                        <CopyButton value={selectedPost.id} />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Character Count:</span>
+                      <span>{selectedPost.content.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Word Count:</span>
+                      <span>{selectedPost.content.trim().split(/\s+/).length}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <div className="flex justify-between">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex items-center gap-1"
+                  onClick={() => window.open(`https://nostr.com/${selectedPost.id}`, '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  View on Nostr
+                </Button>
+                <Button variant="outline" onClick={() => setSelectedPost(null)}>Close</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
