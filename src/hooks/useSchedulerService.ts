@@ -173,7 +173,7 @@ export function useSchedulerService(config: SchedulerConfig = {}) {
       // Clean up stale entries on unmount
       lockManager.cleanup();
     };
-  }, []);
+  }, [lockManager]);
 
   return {
     isEnabled: enabled && !!user,

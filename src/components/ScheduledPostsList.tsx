@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PostPreview } from '@/components/PostPreview';
 import { PostTimeFilter } from '@/components/PostTimeFilter';
 import { filterPostsByTime, type TimeFilter } from '@/lib/postFilters';
-import { NoteContent } from '@/components/NoteContent';
+
 import { SchedulePostForm } from '@/components/SchedulePostForm';
 import type { ScheduledPost } from '@/hooks/useScheduledPosts';
 
@@ -66,6 +66,47 @@ interface ScheduledPostCardProps {
 
 interface ScheduledPostActionsProps {
   post: ScheduledPost;
+}
+
+// Component for dialog actions to avoid hook call in callback
+function EventDialogActions({ post, onClose }: { post: ScheduledPost; onClose: () => void }) {
+  const { mutate: publishPost, isPending } = usePublishScheduledPost();
+  const { toast } = useToast();
+
+  const handlePublish = () => {
+    publishPost(post, {
+      onSuccess: () => {
+        toast({
+          title: 'Post published!',
+          description: 'Your scheduled post has been published successfully',
+        });
+        onClose();
+      },
+      onError: (error) => {
+        toast({
+          title: 'Failed to publish',
+          description: error.message,
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
+  return (
+    <div className="flex justify-end gap-2 mt-4">
+      {post.status === 'scheduled' && (
+        <Button 
+          variant="default" 
+          onClick={handlePublish}
+          disabled={isPending}
+        >
+          <Play className="w-4 h-4 mr-2" />
+          {isPending ? 'Publishing...' : 'Publish Now'}
+        </Button>
+      )}
+      <Button variant="outline" onClick={onClose}>Close</Button>
+    </div>
+  );
 }
 
 function ScheduledPostActions({ post }: ScheduledPostActionsProps) {
@@ -285,7 +326,7 @@ export function ScheduledPostsList({ className }: ScheduledPostsListProps) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
   // Custom event content renderer to show time and title on the same line
-  const renderEventContent = (eventInfo: any) => {
+  const renderEventContent = (eventInfo: { event: { title: string; start: Date | null; extendedProps: { post: ScheduledPost } }; view: { type: string } }) => {
     const { event, view } = eventInfo;
     const post = event.extendedProps.post as ScheduledPost;
     const status = post?.status || 'scheduled';
@@ -302,7 +343,7 @@ export function ScheduledPostsList({ className }: ScheduledPostsListProps) {
     const formattedTime = eventTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
     // Check which view we're in to apply appropriate styling
-    const isMonthView = view.type === 'dayGridMonth';
+    const _isMonthView = view.type === 'dayGridMonth';
     const isWeekView = view.type === 'timeGridWeek';
     const isDayView = view.type === 'timeGridDay';
     
@@ -1000,23 +1041,7 @@ export function ScheduledPostsList({ className }: ScheduledPostsListProps) {
                   <PostPreview post={selectedEvent} showAuthor={true} />
                 </div>
                 
-                <div className="flex justify-end gap-2 mt-4">
-                  {selectedEvent.status === 'scheduled' && (
-                    <Button 
-                      variant="default" 
-                      onClick={() => {
-                        // Use the existing publish functionality
-                        const { mutate: publishPost } = usePublishScheduledPost();
-                        publishPost(selectedEvent);
-                        setIsEventDialogOpen(false);
-                      }}
-                    >
-                      <Play className="w-4 h-4 mr-2" />
-                      Publish Now
-                    </Button>
-                  )}
-                  <Button variant="outline" onClick={() => setIsEventDialogOpen(false)}>Close</Button>
-                </div>
+                <EventDialogActions post={selectedEvent} onClose={() => setIsEventDialogOpen(false)} />
               </DialogContent>
             </Dialog>
           )}

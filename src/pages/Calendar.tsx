@@ -51,10 +51,12 @@ export function Calendar() {
     }));
   }, [posts]);
 
-  const handleEventClick = (clickInfo: any) => {
+  const handleEventClick = (clickInfo: { event: { extendedProps: { post?: ScheduledPost } } }) => {
     const post = clickInfo.event.extendedProps.post;
-    setSelectedEvent(post);
-    setIsDialogOpen(true);
+    if (post) {
+      setSelectedEvent(post);
+      setIsDialogOpen(true);
+    }
   };
 
   if (!user) {
@@ -68,7 +70,7 @@ export function Calendar() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="px-6 py-6">
       <Card className="border shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -94,57 +96,59 @@ export function Calendar() {
           )}
           {!isLoading && !error && (
             <div className="fc-styles-wrapper">
-              <style jsx global>{`
-                .fc {
-                  --fc-border-color: hsl(var(--border));
-                  --fc-button-bg-color: hsl(var(--primary));
-                  --fc-button-border-color: hsl(var(--primary));
-                  --fc-button-hover-bg-color: hsl(var(--primary) / 0.9);
-                  --fc-button-hover-border-color: hsl(var(--primary) / 0.9);
-                  --fc-button-active-bg-color: hsl(var(--primary) / 0.8);
-                  --fc-button-active-border-color: hsl(var(--primary) / 0.8);
-                  --fc-event-border-color: transparent;
-                  --fc-page-bg-color: transparent;
-                  --fc-today-bg-color: hsl(var(--muted) / 0.5);
-                  height: 100%;
-                }
-                .fc-theme-standard .fc-scrollgrid {
-                  border-color: hsl(var(--border));
-                }
-                .fc-theme-standard td, .fc-theme-standard th {
-                  border-color: hsl(var(--border));
-                }
-                .fc .fc-daygrid-day-number, .fc .fc-col-header-cell-cushion {
-                  color: hsl(var(--foreground));
-                  text-decoration: none;
-                }
-                .fc-day-today .fc-daygrid-day-number {
-                  font-weight: bold;
-                }
-                .fc-event {
-                  cursor: pointer;
-                  border-radius: 4px;
-                  padding: 2px 4px;
-                  font-size: 0.875rem;
-                }
-                .fc-event-time {
-                  font-weight: 500;
-                }
-                .fc-toolbar-title {
-                  font-size: 1.25rem !important;
-                  font-weight: 600;
-                }
-                .fc .fc-button {
-                  font-size: 0.875rem;
-                  padding: 0.25rem 0.5rem;
-                  border-radius: 0.25rem;
-                }
-                .fc .fc-button-primary:not(:disabled):active,
-                .fc .fc-button-primary:not(:disabled).fc-button-active {
-                  background-color: hsl(var(--primary) / 0.8);
-                  border-color: hsl(var(--primary) / 0.8);
-                }
-              `}</style>
+              <style dangerouslySetInnerHTML={{
+                __html: `
+                  .fc {
+                    --fc-border-color: hsl(var(--border));
+                    --fc-button-bg-color: hsl(var(--primary));
+                    --fc-button-border-color: hsl(var(--primary));
+                    --fc-button-hover-bg-color: hsl(var(--primary) / 0.9);
+                    --fc-button-hover-border-color: hsl(var(--primary) / 0.9);
+                    --fc-button-active-bg-color: hsl(var(--primary) / 0.8);
+                    --fc-button-active-border-color: hsl(var(--primary) / 0.8);
+                    --fc-event-border-color: transparent;
+                    --fc-page-bg-color: transparent;
+                    --fc-today-bg-color: hsl(var(--muted) / 0.5);
+                    height: 100%;
+                  }
+                  .fc-theme-standard .fc-scrollgrid {
+                    border-color: hsl(var(--border));
+                  }
+                  .fc-theme-standard td, .fc-theme-standard th {
+                    border-color: hsl(var(--border));
+                  }
+                  .fc .fc-daygrid-day-number, .fc .fc-col-header-cell-cushion {
+                    color: hsl(var(--foreground));
+                    text-decoration: none;
+                  }
+                  .fc-day-today .fc-daygrid-day-number {
+                    font-weight: bold;
+                  }
+                  .fc-event {
+                    cursor: pointer;
+                    border-radius: 4px;
+                    padding: 2px 4px;
+                    font-size: 0.875rem;
+                  }
+                  .fc-event-time {
+                    font-weight: 500;
+                  }
+                  .fc-toolbar-title {
+                    font-size: 1.25rem !important;
+                    font-weight: 600;
+                  }
+                  .fc .fc-button {
+                    font-size: 0.875rem;
+                    padding: 0.25rem 0.5rem;
+                    border-radius: 0.25rem;
+                  }
+                  .fc .fc-button-primary:not(:disabled):active,
+                  .fc .fc-button-primary:not(:disabled).fc-button-active {
+                    background-color: hsl(var(--primary) / 0.8);
+                    border-color: hsl(var(--primary) / 0.8);
+                  }
+                `
+              }} />
               <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 initialView="dayGridMonth"

@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { LoginArea } from '@/components/auth/LoginArea';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { EditProfileForm } from '@/components/EditProfileForm';
-import { Navigation } from '@/components/Navigation';
+// Navigation moved to sidebar
 import { RelaySelector } from '@/components/RelaySelector';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -131,13 +131,9 @@ export function Profile() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="px-6 py-6">
       <div className="max-w-4xl mx-auto space-y-8">
-        {/* Navigation */}
-        <div className="flex items-center justify-between">
-          <Navigation />
-          <LogoutButton variant="outline" size="sm" />
-        </div>
+        {/* Navigation and LogoutButton moved to sidebar */}
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

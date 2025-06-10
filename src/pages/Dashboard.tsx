@@ -343,7 +343,7 @@ export default function Dashboard() {
   const isLoading = postsLoading || zapLoading || likesLoading;
   
   return (
-    <div className="container py-10 space-y-8">
+    <div className="px-6 py-6 space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
@@ -624,10 +624,8 @@ export default function Dashboard() {
                           className="group cursor-pointer hover:bg-muted/80"
                         >
                           <TableCell className="font-medium" onClick={() => setSelectedPost(post)}>
-                            <div className="flex items-center justify-between">
-                              <span>{post.title || post.content.substring(0, 50) + (post.content.length > 50 ? '...' : '')}</span>
-                              <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); setSelectedPost(post); }}>View</Button>
-                            </div>
+                            {post.title || post.content.substring(0, 50) + (post.content.length > 50 ? '...' : '')}
+                            <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); setSelectedPost(post); }}>View</Button>
                           </TableCell>
                           <TableCell onClick={() => setSelectedPost(post)}>{format(post.publishedAt, 'PPP')}</TableCell>
                           <TableCell className="text-right" onClick={() => setSelectedPost(post)}>{post.metrics.likes}</TableCell>

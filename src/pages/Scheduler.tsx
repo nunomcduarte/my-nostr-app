@@ -4,8 +4,7 @@ import { useSchedulerService } from '@/hooks/useSchedulerService';
 import { useScheduledPosts } from '@/hooks/useScheduledPosts';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { LoginArea } from '@/components/auth/LoginArea';
-import { LogoutButton } from '@/components/auth/LogoutButton';
-import { Navigation } from '@/components/Navigation';
+// LogoutButton moved to sidebar
 import { genUserName } from '@/lib/genUserName';
 import { SchedulePostForm } from '@/components/SchedulePostForm';
 import { ScheduledPostsList } from '@/components/ScheduledPostsList';
@@ -110,13 +109,9 @@ export function Scheduler() {
   const hasRealProfile = metadata && (metadata.name || metadata.display_name || metadata.picture || metadata.about);
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="px-6 py-6">
       <div className="space-y-8">
-        {/* Navigation */}
-        <div className="flex items-center justify-between">
-          <Navigation />
-          <LogoutButton variant="outline" size="sm" />
-        </div>
+        {/* Navigation moved to sidebar */}
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -145,23 +140,7 @@ export function Scheduler() {
             </div>
           </div>
           
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Schedule Post
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Schedule a New Post</DialogTitle>
-                <DialogDescription>
-                  Create a post that will be automatically published at a future time
-                </DialogDescription>
-              </DialogHeader>
-              <SchedulePostForm onSuccess={() => setIsCreateDialogOpen(false)} />
-            </DialogContent>
-          </Dialog>
+          {/* Schedule Post button moved to sidebar */}
         </div>
 
         {/* Stats */}

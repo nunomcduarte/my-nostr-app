@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Clock, User, Calendar as CalendarIcon } from 'lucide-react';
+import { Clock, User, Calendar as CalendarIcon, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -16,6 +16,11 @@ export function Navigation() {
       href: '/calendar',
       label: 'Calendar',
       icon: CalendarIcon,
+    },
+    {
+      href: '/dashboard',
+      label: 'Dashboard',
+      icon: BarChart3,
     },
     {
       href: '/profile',
